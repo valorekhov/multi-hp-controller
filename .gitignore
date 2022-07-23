@@ -1,0 +1,8 @@
+.vscode/
+.env/
+.pytest_cache/
+.pytest_history/
+.pytest_tmp/
+.pytest_trash/
+__pycache__/
+.DS_Store/

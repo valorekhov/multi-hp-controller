@@ -13,14 +13,20 @@ precise each step is.
 
 * Author(s): Tony DiCola, Scott Shawcroft
 """
+try:
+    from micropython import const
+except ImportError:
+    def const(x): return x
+    pass
 
-from micropython import const
 
 try:
     from typing import Union, Optional
     from digitalio import DigitalInOut
 
 except ImportError:
+    class DigitalInOut:
+        pass
     pass
 
 __version__ = "3.4.2"
