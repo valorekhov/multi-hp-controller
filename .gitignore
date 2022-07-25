@@ -6,3 +6,7 @@
 .pytest_trash/
 __pycache__/
 .DS_Store/
+
+/.embuild
+/target
+/Cargo.lock
