@@ -14,6 +14,7 @@ opt-level = "z"
 
 [features]
 pio = ["esp-idf-sys/pio"]
+qemu = []
 
 [dependencies]
 log = { version = "0.4", default-features = false }

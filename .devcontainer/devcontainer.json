@@ -11,6 +11,7 @@
       "ESP_BOARD": "esp32s3"
     }
   },
+  "runArgs": ["--userns=keep-id"],
   "settings": {
     "editor.formatOnPaste": true,
     "editor.formatOnSave": true,

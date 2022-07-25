@@ -16,7 +16,16 @@ ARG INSTALL_RUST_TOOLCHAIN=install-rust-toolchain.sh
 RUN apt-get update \
     && apt-get install -y git curl gcc clang ninja-build libudev-dev unzip xz-utils\
     python3 python3-pip python3-venv libusb-1.0-0 libssl-dev pkg-config libtinfo5 libpython2.7 \
+    wget flex bison gperf python3-setuptools cmake ccache libffi-dev dfu-util libglib2.0-dev libpixman-1-dev libgcrypt20-dev \
     && apt-get clean -y && rm -rf /var/lib/apt/lists/* /tmp/library-scripts
+
+RUN git clone --quiet https://github.com/espressif/qemu.git \
+		&& cd qemu \
+		&& mkdir -p build \
+		&& cd build \
+		&& ../configure --target-list=xtensa-softmmu     --enable-debug --enable-sanitizers     --disable-strip     --disable-capstone --disable-vnc \
+		&& make vga=no \
+		&& make install
 
 # Set users
 RUN adduser --disabled-password --gecos "" ${CONTAINER_USER}
