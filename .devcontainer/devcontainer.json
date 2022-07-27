@@ -2,13 +2,14 @@
   "name": "multi_hp_controller",
   // Select between image and build propieties to pull or build the image.
   // "image": "docker.io/espressif/idf-rust:esp32s3_v4.4_1.61.0.0",
+  // "ESP_BOARD" has to include `esp32` in order to support QEMU
   "build": {
     "dockerfile": "Dockerfile",
     "args": {
       "CONTAINER_USER": "esp",
       "CONTAINER_GROUP": "esp",
       "ESP_IDF_VERSION":"release/v4.4",
-      "ESP_BOARD": "esp32s3"
+      "ESP_BOARD": "esp32,esp32s3"
     }
   },
   "runArgs": ["--userns=keep-id"],
