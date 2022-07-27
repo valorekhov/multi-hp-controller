@@ -5,6 +5,9 @@ use esp_idf_sys as _; // If using the `binstart` feature of `esp-idf-sys`, alway
 
 use log::*;
 
+mod eev;
+mod core;
+
 #[no_mangle]
 fn main() {
     // Temporary. Will disappear once ESP-IDF 4.4 is released, but for now it is necessary to call this function once,
@@ -15,4 +18,6 @@ fn main() {
     esp_idf_svc::log::EspLogger::initialize_default();
 
     info!("Hello, world!");
+
+    eev::Eev::new(200,10, [10,20,30]);
 }

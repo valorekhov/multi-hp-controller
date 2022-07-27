@@ -8,5 +8,5 @@ __pycache__/
 .DS_Store/
 
 /.embuild
-/target
-/Cargo.lock
+target/
+Cargo.lock
