@@ -19,3 +19,4 @@ async-mutex = { version = "1.4.0", optional = false, default-features = true }
 [target.x86_64-unknown-linux-gnu.dependencies]
 linux-embedded-hal = { version = "0.3", optional = false, features = ["gpio_cdev"] }
 tokio = {version = "1", features = ["full"] }
+mockall = "*"

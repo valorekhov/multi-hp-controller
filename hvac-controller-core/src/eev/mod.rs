@@ -83,6 +83,7 @@ impl Eev<'static> {
 mod tests {
     use crate::eev::Eev;
     use crate::block_async;
+    use crate::hal::{StepperMotor, MovementDirection};
 
     use core::time::Duration;
 
@@ -94,17 +95,28 @@ mod tests {
 
     use async_mutex::Mutex;
 
+    use mockall::*;
+    use mockall::predicate::*;
+
     #[tokio::test]
     async fn eev_initialization() {
 
         let mut timer : SysTimer = SysTimer::new();
+        
+        mock!{
+            Stepper{}
+            impl StepperMotor for Stepper {
+                fn onestep(&self, dir: MovementDirection);
+            }
+        }
 
-        //let mock_stepper_driver = mocker.Mock();
+        let stepper_motor = MockStepper::new();
+        let stepper_driver = Mutex::new(stepper_motor);
+
         let range : u16 = 100;
         let overdrive : u16 = 10;
         let max_steps : u16 = range + overdrive;
-        let stepper_mutex = Mutex::new();
-        let mut eev = Eev::new(&stepper_mutex, range, overdrive, [Duration::from_millis(3), Duration::from_millis(2), Duration::from_millis(1)]);
+        let mut eev = Eev::new(&stepper_driver, range, overdrive, [Duration::from_millis(3), Duration::from_millis(2), Duration::from_millis(1)]);
 
         assert!(eev.current_position() == None);
         eev.initialize().await;
@@ -115,7 +127,7 @@ mod tests {
             //time.sleep(0.005);
             timer.start(Duration::from_millis(100));
             match block_async!(timer.wait()) {
-                Ok(r) => {},
+                Ok(_r) => {},
                 Err(_) => assert!(false)
             };
             step += 1;
