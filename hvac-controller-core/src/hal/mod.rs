@@ -5,6 +5,6 @@ pub enum MovementDirection{
     Opening = 1
 }
 
-pub trait StepperMotor : 'static {
-    fn onestep(&self, dir: MovementDirection);
+pub trait Stepper {
+    fn one_step(&self, direction: MovementDirection);
 }

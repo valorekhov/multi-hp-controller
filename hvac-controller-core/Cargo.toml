@@ -6,8 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
+default = ["alloc"]
 std = ["alloc"]
-alloc = [] # ["futures-core/alloc"]
+alloc = ["futures-core/alloc"]
 
 [dependencies]
 nb = { version = "1.0.0", optional = false, default-features = true }
@@ -15,8 +16,12 @@ embedded-hal = { version = "0.2.7", optional = false, default-features = true }
 # embedded-hal-async = "0.1.0-alpha.1"
 # futures-core = { version = "0.3.4", optional = true, default-features = false }
 async-mutex = { version = "1.4.0", optional = false, default-features = true }
+futures-core = { version = "0.3.21", optional = true}
+percentage = "0.1.0"
 
-[target.x86_64-unknown-linux-gnu.dependencies]
-linux-embedded-hal = { version = "0.3", optional = false, features = ["gpio_cdev"] }
+[dev-dependencies]
 tokio = {version = "1", features = ["full"] }
 mockall = "*"
+
+[target.x86_64-unknown-linux-gnu.dev-dependencies]
+linux-embedded-hal = { version = "0.3", optional = false, features = ["gpio_cdev"] }

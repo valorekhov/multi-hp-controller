@@ -1,3 +1,4 @@
+//#![feature(in_band_lifetimes)]
 // #![feature(generators, generator_trait)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -10,11 +11,13 @@ extern crate alloc;
 // extern crate embedded_hal as hal;
 
 
-mod eev;
-mod util;
-mod hal;
+pub mod eev;
+pub mod util;
+pub mod hal;
 
 pub use crate::hal::*;
+pub use crate::eev::*;
+pub use crate::util::*;
 
 #[macro_export]
 macro_rules! block_async {
@@ -27,7 +30,7 @@ macro_rules! block_async {
                     break Err(e)
                 }
                 Err(nb::Error::WouldBlock) => {
-                    crate::util::yield_now().await;
+                    hvac_controller_core::util::yield_now().await;
                 }
                 Ok(x) => break Ok(x),
             }
