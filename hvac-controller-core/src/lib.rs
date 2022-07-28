@@ -1,3 +1,4 @@
+// #![feature(generators, generator_trait)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(feature = "std")]
@@ -6,21 +7,33 @@ extern crate core;
 #[cfg(feature = "alloc")]
 extern crate alloc;
 
-extern crate embedded_hal as hal;
+// extern crate embedded_hal as hal;
+
 
 mod eev;
+mod util;
+mod hal;
 
-#[repr(i8)]
-pub enum MovementDirection{
-    Closing = -1,
-    Holding = 0,
-    Opening = 1
+pub use crate::hal::*;
+
+#[macro_export]
+macro_rules! block_async {
+    ($e:expr) => {
+        loop {
+            #[allow(unreachable_patterns)]
+            match $e {
+                Err(nb::Error::Other(e)) => {
+                    #[allow(unreachable_code)]
+                    break Err(e)
+                }
+                Err(nb::Error::WouldBlock) => {
+                    crate::util::yield_now().await;
+                }
+                Ok(x) => break Ok(x),
+            }
+        }
+    };
 }
-
-pub trait StepperMotor : Sized + 'static {
-    fn next(&self) -> Self;
-}
-
 
 #[cfg(test)]
 mod tests {

@@ -1,14 +1,12 @@
-// use stepper::{StepperMotor, BACKWARD, FORWARD};
-
+use crate::hal::{StepperMotor, MovementDirection};
+use async_mutex::Mutex;
 
 use core::ops::Add;
-
-use crate::{MovementDirection, StepperMotor};
-
 use core::time::Duration;
+//use alloc::boxed::Box;
 
-pub struct Eev {
-    //_stepper_driver: Box<StepperMotor>,
+pub struct Eev<'a> {
+    _stepper_driver: &'a Mutex<dyn StepperMotor>,
     _max_pulses: u16,
     _overdrive: u16,
     _current_position: Option<u16>,
@@ -18,15 +16,15 @@ pub struct Eev {
     _target_speed: Option<u8>
 }
 
-impl Eev {
+impl Eev<'static> {
     pub fn new(
-        //stepper_driver: &dyn StepperMotor,
+        stepper_driver: &Mutex<dyn StepperMotor>,
         max_pulses: u16,
         overdrive: u16,
         target_speeds: [Duration; 3],
     ) -> Self {
         Self {
-            //_stepper_driver: stepper_driver,
+            _stepper_driver: stepper_driver,
             _max_pulses: max_pulses,
             _overdrive: overdrive,
             _current_position: None,
@@ -69,7 +67,7 @@ impl Eev {
         
         let p: i32 = self._current_position.unwrap_or(0) as i32;
         let pos: i32 = p.add(match self._target_direction {
-            MovementDirection::Closing => { -1}
+            MovementDirection::Closing => {-1}
             MovementDirection::Opening => {1} 
             _ => {0}
         });
@@ -84,16 +82,20 @@ impl Eev {
 #[cfg(test)]
 mod tests {
     use crate::eev::Eev;
+    use crate::block_async;
+
     use core::time::Duration;
 
-    extern crate linux_embedded_hal as hal;
+    extern crate linux_embedded_hal as platform_hal;
+    //use platform_hal::prelude::_embedded_hal_timer_CountDown;
+    use platform_hal::SysTimer;
 
-    use crate::hal::prelude::_embedded_hal_timer_CountDown;
+    use embedded_hal::timer::CountDown;
 
-    use self::hal::SysTimer;
-    
-    #[test]
-    fn eev_initialization() {
+    use async_mutex::Mutex;
+
+    #[tokio::test]
+    async fn eev_initialization() {
 
         let mut timer : SysTimer = SysTimer::new();
 
@@ -101,7 +103,9 @@ mod tests {
         let range : u16 = 100;
         let overdrive : u16 = 10;
         let max_steps : u16 = range + overdrive;
-        let mut eev = Eev::new(range, overdrive, [Duration::from_millis(3), Duration::from_millis(2), Duration::from_millis(1)]);
+        let stepper_mutex = Mutex::new();
+        let mut eev = Eev::new(&stepper_mutex, range, overdrive, [Duration::from_millis(3), Duration::from_millis(2), Duration::from_millis(1)]);
+
         assert!(eev.current_position() == None);
         eev.initialize().await;
         assert!(eev.current_position() == Some(max_steps));
@@ -109,11 +113,14 @@ mod tests {
         while step <= max_steps {
             eev.run().await;
             //time.sleep(0.005);
-            timer.start(Duration::from_millis(10));
-            timer.wait();
+            timer.start(Duration::from_millis(100));
+            match block_async!(timer.wait()) {
+                Ok(r) => {},
+                Err(_) => assert!(false)
+            };
             step += 1;
         }
         assert!(eev.current_position() == Some(0));
-        assert!(eev.is_closed() == true);
+        assert!(eev.is_closed() == true);        
     }
 }

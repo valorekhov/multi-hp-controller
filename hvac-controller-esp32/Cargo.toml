@@ -2,7 +2,7 @@
 name = "multi-hp-controller"
 version = "0.1.0"
 authors = ["Val <valorekhov@gmail.com>"]
-edition = "2021"
+# edition = "2021"
 resolver = "2"
 
 [profile.release]
