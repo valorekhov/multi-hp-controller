@@ -13,8 +13,7 @@ alloc = ["futures-core/alloc"]
 [dependencies]
 nb = { version = "1.0.0", optional = false, default-features = true }
 embedded-hal = { version = "0.2.7", optional = false, default-features = true }
-# embedded-hal-async = "0.1.0-alpha.1"
-# futures-core = { version = "0.3.4", optional = true, default-features = false }
+embedded-hal-async = { version = "0.1.0-alpha.1", optional = false, default-features = true }
 async-mutex = { version = "1.4.0", optional = false, default-features = true }
 futures-core = { version = "0.3.21", optional = true}
 percentage = "0.1.0"

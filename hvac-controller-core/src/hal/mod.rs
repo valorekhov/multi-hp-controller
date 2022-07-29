@@ -1,10 +1,18 @@
 #[repr(i8)]
+#[derive(Eq, PartialEq, Copy, Clone)]
 pub enum MovementDirection{
-    Closing = -1,
-    Holding = 0,
-    Opening = 1
+    Close = -1,
+    Hold = 0,
+    Open = 1
+}
+
+pub enum ActuationError {
+    Generic,
+    ExceededRange,
+    TimedOut
 }
 
 pub trait Stepper {
-    fn one_step(&self, direction: MovementDirection);
+    fn actuate(&self, direction: &MovementDirection) -> Result<(), ActuationError>;
+    fn release(&self);
 }

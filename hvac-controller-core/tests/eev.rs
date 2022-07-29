@@ -1,3 +1,4 @@
+#![feature(generic_associated_types)]
 extern crate linux_embedded_hal as platform_hal;
 
 use platform_hal::SysTimer;
@@ -5,12 +6,42 @@ use embedded_hal::timer::CountDown;
 
 use hvac_controller_core::eev::Eev;
 use hvac_controller_core::block_async;
-use hvac_controller_core::hal::{Stepper, MovementDirection};
+use hvac_controller_core::hal::{Stepper, MovementDirection, ActuationError};
 
 use core::time::Duration;
+use std::future::Future;
+use embedded_hal_async::delay::DelayUs;
 
 use mockall::*;
 use mockall::predicate::*;
+use tokio::task::futures::TaskLocalFuture;
+use tokio::time::{sleep, Sleep};
+
+use futures_core::{future};
+
+struct DelayUsPosix {}
+
+impl DelayUsPosix {
+    async fn async_delay(duration: Duration) -> Result<(), ()> {
+        sleep(duration).await;
+       return Ok(());
+    }
+}
+
+impl DelayUs for DelayUsPosix{
+    type Error = ();
+    type DelayUsFuture<'a> where Self: 'a = Sleep;
+
+    fn delay_us(&mut self, us: u32)  {
+        let delay = DelayUsPosix::async_delay(Duration::from_micros(us as u64));
+    }
+
+    type DelayMsFuture<'a> where Self: 'a = Sleep;
+
+    fn delay_ms(&mut self, ms: u32) -> Sleep {
+        sleep(Duration::from_millis(ms as u64))
+    }
+}
 
 #[tokio::test]
 async fn eev_initialization() {
@@ -20,7 +51,8 @@ async fn eev_initialization() {
     mock!{
             Stepper{}
             impl Stepper for Stepper {
-                fn one_step(&self, dir: MovementDirection);
+                fn actuate(&self, dir: &MovementDirection) -> Result<(), ActuationError>;
+                fn release(&self);
             }
         }
 
@@ -30,7 +62,7 @@ async fn eev_initialization() {
     let range : u16 = 100;
     let overdrive : u16 = 10;
     let max_steps : u16 = range + overdrive;
-    let mut eev = Eev::new(stepper_driver, range, overdrive, [Duration::from_millis(3), Duration::from_millis(2), Duration::from_millis(1)]);
+    let mut eev = Eev::<DelayUsPosix>::new(stepper_driver, range, overdrive, [Duration::from_millis(3), Duration::from_millis(2), Duration::from_millis(1)]);
 
     assert!(eev.current_position() == None);
     eev.initialize().await;

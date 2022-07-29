@@ -1,5 +1,7 @@
 //#![feature(in_band_lifetimes)]
 // #![feature(generators, generator_trait)]
+#![feature(mixed_integer_ops)]
+#![feature(fn_traits)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(feature = "std")]
