@@ -60,23 +60,28 @@ impl Eev {
         // TODO: Calc direction from current and target positions;
         let direction = if target_pulsed_position < current_pulsed_position {MovementDirection::Closing} else {MovementDirection::Opening};
 
+        let move_into_position = |stepper| -> Result<(), Err> {
+            stepper.one_step(direction);
+
+            let p: i32 = self._current_position.unwrap_or(0) as i32;
+            let pos: i32 = p.add(match direction {
+                MovementDirection::Closing => {-1}
+                MovementDirection::Opening => {1} 
+                _ => {0}
+            });
+
+            self._current_position = Some(if pos < 0 {0} else if (pos as u16) > self._max_pulses { self._max_pulses } else { pos as u16 } );
+
+            let delay = self._target_speeds[speed];
+            // TODO: Sleep according to specified speed
+
+            Ok(());
+        };
+
+
         // Lock on the stepper to ensure only a single operation works at a time
         let stepper = self._stepper_mutex.lock().await;
-        stepper.as_ref().one_step(direction);
-
-
-        let p: i32 = self._current_position.unwrap_or(0) as i32;
-        let pos: i32 = p.add(match direction {
-            MovementDirection::Closing => {-1}
-            MovementDirection::Opening => {1} 
-            _ => {0}
-        });
-
-        self._current_position = Some(if pos < 0 {0} else if (pos as u16) > self._max_pulses { self._max_pulses } else { pos as u16 } );
-
-        let delay = self._target_speeds[speed];
-        // TODO: Sleep according to specified speed
-
+        move_into_position(stepper.as_ref());
         drop(stepper);
         //self._set_next_tick_millis(self._target_speed);        
     }
