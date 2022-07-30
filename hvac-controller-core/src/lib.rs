@@ -21,24 +21,24 @@ pub use crate::hal::*;
 pub use crate::eev::*;
 pub use crate::util::*;
 
-#[macro_export]
-macro_rules! block_async {
-    ($e:expr) => {
-        loop {
-            #[allow(unreachable_patterns)]
-            match $e {
-                Err(nb::Error::Other(e)) => {
-                    #[allow(unreachable_code)]
-                    break Err(e)
-                }
-                Err(nb::Error::WouldBlock) => {
-                    hvac_controller_core::util::yield_now().await;
-                }
-                Ok(x) => break Ok(x),
-            }
-        }
-    };
-}
+// #[macro_export]
+// macro_rules! block_async {
+//     ($e:expr) => {
+//         loop {
+//             #[allow(unreachable_patterns)]
+//             match $e {
+//                 Err(nb::Error::Other(e)) => {
+//                     #[allow(unreachable_code)]
+//                     break Err(e)
+//                 }
+//                 Err(nb::Error::WouldBlock) => {
+//                     hvac_controller_core::util::yield_now().await;
+//                 }
+//                 Ok(x) => break Ok(x),
+//             }
+//         }
+//     };
+// }
 
 #[cfg(test)]
 mod tests {

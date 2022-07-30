@@ -1,52 +1,57 @@
 #![feature(generic_associated_types)]
 extern crate linux_embedded_hal as platform_hal;
 
-use platform_hal::SysTimer;
-use embedded_hal::timer::CountDown;
-
 use hvac_controller_core::eev::Eev;
-use hvac_controller_core::block_async;
 use hvac_controller_core::hal::{Stepper, MovementDirection, ActuationError};
 
 use core::time::Duration;
-use std::future::Future;
+use core::future::{Future};
+use core::pin::Pin;
+use core::task::{Context, Poll};
 use embedded_hal_async::delay::DelayUs;
 
 use mockall::*;
 use mockall::predicate::*;
-use tokio::task::futures::TaskLocalFuture;
 use tokio::time::{sleep, Sleep};
 
-use futures_core::{future};
+struct SleepWrapper {
+     pub sleep: Pin<Box<Sleep>>,
+}
 
-struct DelayUsPosix {}
-
-impl DelayUsPosix {
-    async fn async_delay(duration: Duration) -> Result<(), ()> {
-        sleep(duration).await;
-       return Ok(());
+impl Future for SleepWrapper {
+     type Output = Result<(), ()>;
+    
+     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+            match self.sleep.as_mut().poll(cx) {
+                Poll::Ready(()) => Poll::Ready(Ok(())),
+                Poll::Pending => Poll::Pending,
+            }
     }
 }
 
+struct DelayUsPosix {}
+
 impl DelayUs for DelayUsPosix{
     type Error = ();
-    type DelayUsFuture<'a> where Self: 'a = Sleep;
+    type DelayUsFuture<'a> = SleepWrapper where Self: 'a;
 
-    fn delay_us(&mut self, us: u32)  {
-        let delay = DelayUsPosix::async_delay(Duration::from_micros(us as u64));
+    fn delay_us(&mut self, us: u32) -> SleepWrapper {
+        SleepWrapper{sleep: Box::pin(sleep(Duration::from_micros(us as u64)))}
     }
 
-    type DelayMsFuture<'a> where Self: 'a = Sleep;
+    type DelayMsFuture<'a> = SleepWrapper where Self: 'a;
 
-    fn delay_ms(&mut self, ms: u32) -> Sleep {
-        sleep(Duration::from_millis(ms as u64))
+    fn delay_ms(&mut self, ms: u32) -> SleepWrapper {
+        SleepWrapper{sleep: Box::pin(sleep(Duration::from_millis(ms as u64)))}
     }
 }
 
 #[tokio::test]
 async fn eev_initialization() {
 
-    let mut timer : SysTimer = SysTimer::new();
+    let range : u16 = 100;
+    let overdrive : u16 = 10;
+    let max_steps : u16 = range + overdrive;
 
     mock!{
             Stepper{}
@@ -56,28 +61,41 @@ async fn eev_initialization() {
             }
         }
 
-    let stepper_motor = MockStepper::new();
-    let stepper_driver = Box::new(stepper_motor);
+    let mut stepper_motor = MockStepper::new();
+    stepper_motor.expect_actuate()
+        .times(max_steps as usize)
+        .returning(|_| Ok(()));
 
-    let range : u16 = 100;
-    let overdrive : u16 = 10;
-    let max_steps : u16 = range + overdrive;
-    let mut eev = Eev::<DelayUsPosix>::new(stepper_driver, range, overdrive, [Duration::from_millis(3), Duration::from_millis(2), Duration::from_millis(1)]);
+    let delay_generator = DelayUsPosix{};
 
-    assert!(eev.current_position() == None);
-    eev.initialize().await;
-    assert_eq!(eev.current_position(), Some(max_steps));
-    let mut step = 0;
-    while step <= max_steps {
-        eev.run().await;
-        //time.sleep(0.005);
-        timer.start(Duration::from_millis(100));
-        match block_async!(timer.wait()) {
-            Ok(_r) => {},
-            Err(_) => panic!()
-        };
-        step += 1;
-    }
-    assert_eq!(eev.current_position(), Some(0));
-    assert!(eev.is_closed());
+    let mut eev = Eev::new( stepper_motor, range, overdrive, 
+            [Duration::from_millis(3), Duration::from_millis(2), Duration::from_millis(1)],
+            delay_generator);
+
+    assert!(eev.current_position().is_none());
+    assert!(eev.current_direction().is_none());
+    match eev.initialize().await {
+        Ok(_) => assert!(true),
+        Err(_) => assert!(false),
+    };
+
+    assert_eq!(eev.current_direction(), Some(MovementDirection::Hold));
+    assert!(eev.current_position().is_some());
+    assert_eq!(eev.current_position().unwrap().value(), 0);
+
+    stepper_motor.checkpoint();
+
+    // while step <= max_steps {
+    //     eev.actuate(Percentage::).await;
+    //     //time.sleep(0.005);
+    //     timer.start(Duration::from_millis(100));
+    //     match block_async!(timer.wait()) {
+    //         Ok(_r) => {},
+    //         Err(_) => panic!()
+    //     };
+    //     step += 1;
+    // }
+    assert!(eev.current_position().is_some());
+    assert_eq!(eev.current_position().unwrap().value(), 100);
+    assert!(eev.is_fully_closed());
 }

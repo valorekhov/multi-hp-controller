@@ -3,25 +3,24 @@ use async_mutex::Mutex;
 
 use core::time::Duration;
 use core::ops::{Div, Mul};
-use alloc::boxed::Box;
 use embedded_hal_async::delay::DelayUs;
 
 use percentage::{Percentage, PercentageInteger};
 use crate::ActuationError;
 
-pub struct Eev<TDelay> where TDelay : DelayUs{
+pub struct Eev<TStepper, TDelay> where TStepper: Stepper, TDelay : DelayUs {
     _max_pulses: u16,
     _overdrive: u16,
     _current_position: Option<u16>,
     _current_direction: Option<MovementDirection>,
     _target_speeds: [Duration; 3],
-    _stepper_mutex: Mutex<Box<dyn Stepper>>,
+    _stepper_mutex: Mutex<TStepper>,
     _delay_generator: TDelay
 }
 
-impl<TDelay> Eev<TDelay>  where TDelay : DelayUs {
+impl<TStepper, TDelay> Eev<TStepper, TDelay> where TStepper: Stepper, TDelay : DelayUs {
     pub fn new(
-        stepper_driver: Box<dyn Stepper>,
+        stepper_driver: TStepper,
         max_pulses: u16,
         overdrive: u16,
         target_speeds: [Duration; 3],
@@ -40,6 +39,10 @@ impl<TDelay> Eev<TDelay>  where TDelay : DelayUs {
 
     pub fn current_position(&self) -> Option<PercentageInteger> {
         self._current_position.map(|pos| Percentage::from(  pos.mul(100).div(self._max_pulses)))
+    }
+
+    pub fn current_direction(&self) -> Option<MovementDirection> {
+        self._current_direction
     }
 
     pub fn is_fully_closed(&self) -> bool { self._current_position == Some(0) }
@@ -93,15 +96,20 @@ impl<TDelay> Eev<TDelay>  where TDelay : DelayUs {
 
                 // Explicit termination conditions at extreme edges of motion range
                 if current_pulsed_position == 0 && direction == MovementDirection::Close {
+                    self._current_direction = Some(MovementDirection::Hold);
                     return Ok(Percentage::from(0));
                 }
 
                 if current_pulsed_position == self._max_pulses && direction == MovementDirection::Open {
+                    self._current_direction = Some(MovementDirection::Hold);
                     return Ok(Percentage::from(100));
                 }
 
                 let _ = self._delay_generator.delay_ms(self._target_speeds[speed].as_millis() as u32).await;
             }
+
+            stepper.release();
+            self._current_direction = Some(MovementDirection::Hold);
 
             Ok(Percentage::from((current_pulsed_position as u32).mul(100).div(self._max_pulses as u32)))
         }
