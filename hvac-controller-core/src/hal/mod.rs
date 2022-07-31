@@ -15,5 +15,5 @@ pub enum ActuationError {
 
 pub trait Stepper {
     fn actuate(&self, direction: &MovementDirection) -> Result<(), ActuationError>;
-    fn release(&self);
+    fn release(&self) -> Result<(), ActuationError>;
 }

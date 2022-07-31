@@ -1,101 +1,118 @@
 #![feature(generic_associated_types)]
-extern crate linux_embedded_hal as platform_hal;
 
 use hvac_controller_core::eev::Eev;
 use hvac_controller_core::hal::{Stepper, MovementDirection, ActuationError};
+use percentage::Percentage;
 
 use core::time::Duration;
-use core::future::{Future};
-use core::pin::Pin;
-use core::task::{Context, Poll};
-use embedded_hal_async::delay::DelayUs;
+mod util;
+use util::DelayUsPosix;
 
 use mockall::*;
 use mockall::predicate::*;
-use tokio::time::{sleep, Sleep};
 
-struct SleepWrapper {
-     pub sleep: Pin<Box<Sleep>>,
-}
+const RANGE : u16 = 200;
+const OVERDRIVE : u16 = 15;
+const MAX_STEPS : u16 = RANGE + OVERDRIVE;
+const SPEEDS : [Duration; 3] = [Duration::from_millis(3), Duration::from_millis(2), Duration::from_millis(1)];
 
-impl Future for SleepWrapper {
-     type Output = Result<(), ()>;
-    
-     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-            match self.sleep.as_mut().poll(cx) {
-                Poll::Ready(()) => Poll::Ready(Ok(())),
-                Poll::Pending => Poll::Pending,
-            }
+const DELAY_GENERATOR : DelayUsPosix = DelayUsPosix{};
+
+mock!{
+    Stepper{}
+    impl Stepper for Stepper {
+        fn actuate(&self, dir: &MovementDirection) -> Result<(), ActuationError>;
+        fn release(&self) -> Result<(), ActuationError>;
     }
-}
-
-struct DelayUsPosix {}
-
-impl DelayUs for DelayUsPosix{
-    type Error = ();
-    type DelayUsFuture<'a> = SleepWrapper where Self: 'a;
-
-    fn delay_us(&mut self, us: u32) -> SleepWrapper {
-        SleepWrapper{sleep: Box::pin(sleep(Duration::from_micros(us as u64)))}
-    }
-
-    type DelayMsFuture<'a> = SleepWrapper where Self: 'a;
-
-    fn delay_ms(&mut self, ms: u32) -> SleepWrapper {
-        SleepWrapper{sleep: Box::pin(sleep(Duration::from_millis(ms as u64)))}
-    }
-}
+}   
 
 #[tokio::test]
 async fn eev_initialization() {
-
-    let range : u16 = 100;
-    let overdrive : u16 = 10;
-    let max_steps : u16 = range + overdrive;
-
-    mock!{
-            Stepper{}
-            impl Stepper for Stepper {
-                fn actuate(&self, dir: &MovementDirection) -> Result<(), ActuationError>;
-                fn release(&self);
-            }
-        }
-
+     
     let mut stepper_motor = MockStepper::new();
     stepper_motor.expect_actuate()
-        .times(max_steps as usize)
+        .times(MAX_STEPS as usize)
         .returning(|_| Ok(()));
+    stepper_motor.expect_release()
+        .times(1)
+        .returning(|| Ok(()));
 
-    let delay_generator = DelayUsPosix{};
-
-    let mut eev = Eev::new( stepper_motor, range, overdrive, 
-            [Duration::from_millis(3), Duration::from_millis(2), Duration::from_millis(1)],
-            delay_generator);
+    let mut eev = Eev::new( stepper_motor, 
+        RANGE, OVERDRIVE, DELAY_GENERATOR);
 
     assert!(eev.current_position().is_none());
     assert!(eev.current_direction().is_none());
-    match eev.initialize().await {
+    match eev.initialize(SPEEDS[1]).await {
         Ok(_) => assert!(true),
         Err(_) => assert!(false),
     };
 
     assert_eq!(eev.current_direction(), Some(MovementDirection::Hold));
-    assert!(eev.current_position().is_some());
-    assert_eq!(eev.current_position().unwrap().value(), 0);
+    assert_eq!(eev.current_position().map(|p| p.value()), Some(0));
+}
 
-    stepper_motor.checkpoint();
+#[tokio::test]
+async fn eev_fully_open() {
+    let mut stepper_motor = MockStepper::new();
+    stepper_motor.expect_actuate()
+        .times((MAX_STEPS + RANGE) as usize)
+        .returning(|_| Ok(()));
+    stepper_motor.expect_release()
+        .times(2)
+        .returning(|| Ok(()));
 
-    // while step <= max_steps {
-    //     eev.actuate(Percentage::).await;
-    //     //time.sleep(0.005);
-    //     timer.start(Duration::from_millis(100));
-    //     match block_async!(timer.wait()) {
-    //         Ok(_r) => {},
-    //         Err(_) => panic!()
-    //     };
-    //     step += 1;
-    // }
-    assert!(eev.current_position().is_some());
-    assert_eq!(eev.current_position().unwrap().value(), 100);
-    assert!(eev.is_fully_closed());
+    let mut eev = Eev::new( stepper_motor, 
+        RANGE, OVERDRIVE, DELAY_GENERATOR);
+
+    match eev.initialize(SPEEDS[1]).await {
+        Ok(_) => assert!(true),
+        Err(_) => assert!(false),
+    };
+    assert_eq!(eev.current_direction(), Some(MovementDirection::Hold));
+    assert_eq!(eev.current_position().map(|p| p.value()), Some(0));
+
+    match eev.actuate(Percentage::from(100), SPEEDS[0]).await {
+        Ok(pct) => assert_eq!(pct.value(), 100),
+        Err(_) => assert!(false),
+    };
+    assert_eq!(eev.current_direction(), Some(MovementDirection::Hold));
+    assert_eq!(eev.current_position().map(|p| p.value()), Some(100));
+}
+
+#[tokio::test]
+async fn eev_actuate() {
+    let mut stepper_motor = MockStepper::new();
+    stepper_motor.expect_actuate()
+        .times((MAX_STEPS + RANGE + core::ops::Div::div(RANGE, 2)) as usize)
+        .returning(|_| Ok(()));
+    stepper_motor.expect_release()
+        .times(3)
+        .returning(|| Ok(()));
+
+    let mut eev = Eev::new( stepper_motor, 
+        RANGE, OVERDRIVE, DELAY_GENERATOR);
+
+    match eev.initialize(SPEEDS[1]).await {
+        Ok(_) => assert!(true),
+        Err(_) => assert!(false),
+    };
+    assert_eq!(eev.current_position().map(|p| p.value()), Some(0));
+
+    match eev.actuate(Percentage::from(100), SPEEDS[0]).await {
+        Ok(pct) => assert_eq!(pct.value(), 100),
+        Err(_) => assert!(false),
+    };
+    assert_eq!(eev.current_position().map(|p| p.value()), Some(100));
+
+    match eev.actuate(Percentage::from(50), SPEEDS[0]).await {
+        Ok(pct) => assert_eq!(pct.value(), 50),
+        Err(_) => assert!(false),
+    };
+    assert_eq!(eev.current_position().map(|p| p.value()), Some(50));
+}
+
+#[test]
+#[should_panic(expected = "Percentage value must be between 0 and 100")]
+fn percentage_goes_to_hundred_max() {
+    Percentage::from(101);
 }
